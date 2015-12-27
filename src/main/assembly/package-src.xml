@@ -1,0 +1,29 @@
+<assembly>
+	<id>src</id>
+	<formats>
+		<format>zip</format>
+	</formats>
+	<includeBaseDirectory>false</includeBaseDirectory>
+	<fileSets>
+		<fileSet>
+			<directory>.</directory>
+			<excludes>
+				<exclude>*.gz</exclude>
+				<exclude>*.log</exclude>
+				<exclude>.classpath</exclude>
+				<exclude>.project</exclude>
+				<exclude>.settings/</exclude>
+				<exclude>1/</exclude>
+				<exclude>bin/</exclude>
+				<exclude>target/</exclude>
+				<exclude>temp/</exclude>
+				<exclude>work/</exclude>
+				<exclude>lib/*.jar</exclude>
+				<exclude>tools/</exclude>
+				<exclude>platform-tools/</exclude>
+			</excludes>
+			<outputDirectory>/</outputDirectory>
+			<filtered>false</filtered>
+		</fileSet>
+	</fileSets>
+</assembly>

@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>jpatch</groupId>
+	<artifactId>email-policy-patch</artifactId>
+	<version>4.3</version>
+	<name>email-policy-patch</name>
+	<description>email policy patch</description>
+	<packaging>jar</packaging>
+	<properties>
+		<smali.version>dev</smali.version>
+	</properties>
+
+	<dependencies>
+		<dependency>
+			<groupId>org.jf</groupId>
+			<artifactId>smali</artifactId>
+			<version>${smali.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.jf</groupId>
+			<artifactId>baksmali</artifactId>
+			<version>${smali.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-compress</artifactId>
+			<version>1.0</version>
+		</dependency>
+
+		<dependency>
+			<groupId>junit</groupId>
+			<artifactId>junit</artifactId>
+			<version>4.8.1</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>commons-io</groupId>
+			<artifactId>commons-io</artifactId>
+			<version>2.1</version>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+	<build>
+		<plugins>
+			<plugin>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<source>1.6</source>
+					<target>1.6</target>
+				</configuration>
+			</plugin>
+			<plugin>
+				<artifactId>maven-eclipse-plugin</artifactId>
+				<version>2.9</version>
+				<configuration>
+					<testSourcesLast>true</testSourcesLast>
+					<downloadSources>true</downloadSources>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+	<profiles>
+		<profile>
+			<!-- only run this during a release, or run maven with -Prelease -->
+			<id>release</id>
+			<build>
+				<plugins>
+					<plugin>
+						<artifactId>maven-shade-plugin</artifactId>
+						<version>1.6</version>
+						<executions>
+							<execution>
+								<id>package-jar</id>
+								<phase>package</phase>
+								<goals>
+									<goal>shade</goal>
+								</goals>
+								<configuration>
+									<finalName>email-policy-patch-shaded</finalName>
+					              <transformers>
+					                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+					                  <mainClass>jpatch.emailPolicy.Run</mainClass>
+					                </transformer>
+					              </transformers>
+					            </configuration>
+							</execution>
+						</executions>
+					</plugin>
+		            <plugin>
+		                <groupId>com.github.wvengen</groupId>
+		                <artifactId>proguard-maven-plugin</artifactId>
+		                <version>2.0.5</version>
+		                <executions>
+		                   <execution>
+		                       <phase>package</phase>
+		                       <goals>
+		                           <goal>proguard</goal>
+		                       </goals>
+				                <configuration>
+				                    <proguardVersion>4.8</proguardVersion>
+				                    <obfuscate>false</obfuscate>
+				                    <includeDependency>false</includeDependency>
+				                    <injar>email-policy-patch-shaded.jar</injar>
+				                    <outjar>email-policy-patch.jar</outjar>
+				                    <outputDirectory>${project.build.directory}</outputDirectory>
+				                    <options>
+				                        <option>-dontoptimize</option>
+				                        <option>-keep public class jpatch.emailPolicy.Run {
+				                            public static void main(java.lang.String[]);
+				                        }</option>
+				                        <option>-keep public class org.jf.baksmali.main {
+				                            public static void main(java.lang.String[]);
+				                        }</option>
+				                        <option>-keep public class org.jf.smali.main {
+				                            public static void main(java.lang.String[]);
+				                        }</option>
+				                        <option>-keepclassmembers enum * {
+				                            public static **[] values();
+				                            public static ** valueOf(java.lang.String);
+				                        }</option>
+				                        <option>-dontwarn org.antlr.stringtemplate.test.**</option>
+				                        <option>-dontnote org.antlr.stringtemplate.test.**</option>
+				                        <option>-dontwarn com.google.common.**</option>
+				                        <option>-dontnote com.google.common.**</option>
+				                    </options>
+				                    <libs>
+				                        <lib>${java.home}/lib/rt.jar</lib>
+				                    </libs>
+				                </configuration>
+		                   </execution>
+		                </executions>
+		                <dependencies>
+		                    <dependency>
+		                        <groupId>net.sf.proguard</groupId>
+		                        <artifactId>proguard-base</artifactId>
+		                        <version>4.8</version>
+		                    </dependency>
+		                </dependencies>
+		            </plugin>
+					<plugin>
+						<artifactId>maven-assembly-plugin</artifactId>
+						<executions>
+							<execution>
+								<id>package-release</id>
+								<phase>package</phase>
+								<goals>
+									<goal>single</goal>
+								</goals>
+								<configuration>
+									<descriptors>
+										<descriptor>src/main/assembly/package-bin.xml</descriptor>
+										<descriptor>src/main/assembly/package-src.xml</descriptor>
+									</descriptors>
+								</configuration>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
+</project>

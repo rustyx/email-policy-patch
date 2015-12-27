@@ -1,0 +1,7 @@
+This software, excluding any bundled 3rd party code, is public domain
+and provided AS-IS without any warranties.
+
+You can do whatever you want with it, as long as it's legal.
+
+Bundled modules (adb, antlr, smali, apache commons) are protected by their
+respective licenses.
