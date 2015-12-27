@@ -1,0 +1,9 @@
+.classpath
+.project
+.settings
+platform-tools
+target
+temp
+work
+*.log
+
