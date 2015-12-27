@@ -296,7 +296,7 @@ public class Run {
 					version = m.group(1);
 				}
 				apiLevel = getAPILevel(version, build);
-				println("Model: " + model + ", build " + build + ", android " + version + " (API Level " + apiLevel + ")");
+				println("Model: " + model + ", build " + build + ", android " + version + " (API Level " + apiLevel + (apiLevel == MAX_API_LEVEL ? "+" : "") + ")");
 			} else
 				println("Unable to determine device model. adb output: \n" + getCmdErr());
 		}
@@ -315,7 +315,7 @@ public class Run {
 			int v = Integer.parseInt(m.group(1)) * 10000 + Integer.parseInt(m.group(2)) * 100;
 			if (m.group(4) != null)
 				v += Integer.parseInt(m.group(4));
-			if (v < 40100) {
+			if (v < 50600) {
 				if (v >= 40100) return 16;
 				if (v >= 40003) return 15;
 				if (v >= 40000) return 14;
@@ -757,8 +757,10 @@ public class Run {
 				runShellCommand(wrapSU("reboot"));
 
 				notes = "\nNOTES! PLEASE READ!\n\n"
-						+ "* All shortcuts to the Email app will disappear and will need to be re-created.\n"
-						+ "  The Email app icon will move towards the end of the application list.\n\n";
+						+ "* All Email app accounts will be reset and need to be re-created.\n"
+						+ "* The Email app icon might move towards the end of the application list.\n"
+						+ "* LET the app install the Device Admin! Do NOT 'Cancel' any request\n"
+						+ "  (no policy will actually be enforced, but the admin must be set).\n\n";
 				
 			} else if ("restore".equals(args[0])) {
 				createWorkDir();

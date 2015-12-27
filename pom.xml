@@ -4,12 +4,14 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>jpatch</groupId>
 	<artifactId>email-policy-patch</artifactId>
-	<version>4.3</version>
+	<version>4.4</version>
 	<name>email-policy-patch</name>
 	<description>email policy patch</description>
 	<packaging>jar</packaging>
 	<properties>
 		<smali.version>dev</smali.version>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 	</properties>
 
 	<dependencies>
@@ -46,17 +48,10 @@
 		<plugins>
 			<plugin>
 				<artifactId>maven-compiler-plugin</artifactId>
+				<version>3.3</version>
 				<configuration>
 					<source>1.6</source>
 					<target>1.6</target>
-				</configuration>
-			</plugin>
-			<plugin>
-				<artifactId>maven-eclipse-plugin</artifactId>
-				<version>2.9</version>
-				<configuration>
-					<testSourcesLast>true</testSourcesLast>
-					<downloadSources>true</downloadSources>
 				</configuration>
 			</plugin>
 		</plugins>
@@ -141,6 +136,7 @@
 		            </plugin>
 					<plugin>
 						<artifactId>maven-assembly-plugin</artifactId>
+						<version>2.4</version>
 						<executions>
 							<execution>
 								<id>package-release</id>
