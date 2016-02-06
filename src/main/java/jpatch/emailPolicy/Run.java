@@ -388,7 +388,7 @@ public class Run {
 		List<PatchableAPK> apks = new ArrayList<PatchableAPK>(2);
 		
 		//email
-		for (String s : new String[] { "Email", "EmailGoogle", "com.android.email", "SecEmail_J", "SecEmail_Tablet", "SecEmail", "Email2", "Email2Google", null }) {	//BOOST: Added 4.0.3 apk names
+		for (String s : new String[] { "Email", "EmailGoogle", "com.android.email", "SecEmail_J", "SecEmail_K", "SecEmail_L", "SecEmail_M", "SecEmail_Tablet", "SecEmail", "Email2", "Email2Google", null }) {
 			if (s == null) {
 				System.out.print("Can't find Email app. Enter the name of your Email apk or press <Enter> to exit: ");
 				s = new BufferedReader(new InputStreamReader(System.in)).readLine();
