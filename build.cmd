@@ -1,2 +1,6 @@
 @echo off
-mvn clean package -Prelease
+call mvn clean package -Prelease
+if errorlevel 1 goto p
+goto :eof
+:p
+pause
