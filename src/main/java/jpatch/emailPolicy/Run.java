@@ -31,6 +31,8 @@ public class Run {
 	
 	static String adb = "adb";
 	static String sdcardDir = "/sdcard/";
+	static String sdcardSUDirs[] = {sdcardDir, "/mnt/shell/emulated/0/", "/storage/sdcard0/"};
+	static String sdcardSUDir;
 	static String workDir = "work";
 	static final int DEFAULT_API_LEVEL = 15;
 	static final int MAX_API_LEVEL = 16;
@@ -43,6 +45,11 @@ public class Run {
 
 	static boolean messageMode; // true if last thrown exception shouldn't write debug log
 	
+	static final String[] EMAIL_APKS = new String[] { "Email", "EmailGoogle", "com.android.email", "SecEmail_J", "SecEmail_K", "SecEmail_L",
+			"SecEmail_M", "SecEmail_Tablet", "SecEmail", "Email2", "Email2Google" };
+	static final String[] EXCHANGE_APKS = new String[] { "Exchange", "ExchangeGoogle", "com.android.exchange", "SecExchange_J", "SecExchange_K",
+			"SecExchange_L", "SecExchange_M", "SecExchange_Tablet", "SecExchange", "Exchange2", "Exchange2Google" };
+
 	static class PatchException extends RuntimeException {
 		private static final long serialVersionUID = 1L;
 		public PatchException(String msg) {
@@ -103,6 +110,20 @@ public class Run {
 			return -1;
 		}catch (InterruptedException e) {
 			throw new IOException("runCommand interrupted", e);
+		}
+	}
+	
+	static void runCommandNoWait(String ... args) throws IOException, InterruptedException {
+		cmdout.setLength(0);
+		cmderr.setLength(0);
+		log.println("> " + join(" ", args));
+		try {
+			final Process p = Runtime.getRuntime().exec(args, null, workDirFile);
+			new IOCapture(cmdout, p.getInputStream()).start();
+			new IOCapture(cmderr, p.getErrorStream()).start();
+			Thread.sleep(1000);
+		} catch (IOException e) {
+			log.println(e.getMessage());
 		}
 	}
 	
@@ -210,24 +231,37 @@ public class Run {
 			}
 			adb = new File(workDirFile, AdbUtils.getAdbPath()).getPath();
 		}
-		println("Waiting for USB connection...");
+	}
+
+	static void waitForDevice(final boolean initial) throws IOException, InterruptedException {
 		Thread timeout = new Thread() {
 			@Override
 			public void run() {
 				try {
-					Thread.sleep(6000);
-					println("Connect your device!\n" +
-							"Enable USB debugging (Settings -> Applications -> Development -> USB debugging)\n"
-							+ "On CM builds allow ADB root access (Settings > Developer Options > Root access)\n"
-							+ "Authorize PC access on device if necessary (check device screen)");
+					Thread.sleep(1000);
+					println("Waiting for ADB connection...");
+					Thread.sleep(5000);
+					if (initial)
+						println("Connect your device!\n" +
+								"Enable USB debugging (Settings -> Applications -> Development -> USB debugging)\n"
+								+ "On CM builds allow ADB root access (Settings > Developer Options > Root access)\n"
+								+ "Authorize PC access on device if necessary (check device screen!)\n"
+								+ "Note: ADB via Wi-Fi is also possible.\n"
+								+ "Waiting for connection...");
 				} catch (InterruptedException e) {
 					// ignore
 				}
 			}
 		};
-		timeout.start();
-		rc = runCommand(adb, "wait-for-device");
-		timeout.interrupt();
+		int rc = -1;
+		for (int i = 0; i < 30; i++) {
+			timeout.start();
+			rc = runCommand(adb, "wait-for-device");
+			timeout.interrupt();
+			if (initial || rc == 0)
+				break;
+			Thread.sleep(1000);
+		};
 		if (rc != 0)
 			throw new PatchException("No device connected. Please connect your device and try again.");
 	}
@@ -384,47 +418,60 @@ public class Run {
 		}
 	}
 	
+	static PatchableAPK pullApk(String s) throws IOException {
+		PatchableAPK apk = new PatchableAPK(s);
+		if (pullFile("/system/app/" + apk.apk, apk.apk)) {
+			apk.hasOdex = pullFile("/system/app/" + apk.odex, apk.odex);
+			return apk;
+		}
+		return null;
+	}
+	
 	static List<PatchableAPK> findApks() throws IOException {
 		List<PatchableAPK> apks = new ArrayList<PatchableAPK>(2);
 		
 		//email
-		for (String s : new String[] { "Email", "EmailGoogle", "com.android.email", "SecEmail_J", "SecEmail_K", "SecEmail_L", "SecEmail_M", "SecEmail_Tablet", "SecEmail", "Email2", "Email2Google", null }) {
-			if (s == null) {
-				System.out.print("Can't find Email app. Enter the name of your Email apk or press <Enter> to exit: ");
-				s = new BufferedReader(new InputStreamReader(System.in)).readLine();
-				if (s == null || s.trim().length() == 0) {
-					throw new PatchException("User aborted (Email app not found).");
-				}
-				s = s.trim().replaceFirst("\\.apk$", "");
-			}
-			PatchableAPK apk = new PatchableAPK(s);
-			if (pullFile("/system/app/" + apk.apk, apk.apk)) {
-				apk.hasOdex = pullFile("/system/app/" + apk.odex, apk.odex);
+		PatchableAPK apk = null;
+		for (String s : EMAIL_APKS) {
+			apk = pullApk(s);
+			if (apk != null) {
 				apks.add(apk);
 				break;
 			}
+		}
+		if (apk == null) {
+			System.out.print("Can't find Email app. Enter the name of your Email apk or press <Enter> to exit: ");
+			String s = new BufferedReader(new InputStreamReader(System.in)).readLine();
+			if (s == null || s.trim().length() == 0) {
+				throw new PatchException("User aborted (Email app not found).");
+			}
+			apk = pullApk(s.trim().replaceFirst("\\.apk$", ""));
+			if (apk != null) {
+				apks.add(apk);
+			}
+		}
+		if (apks.isEmpty()) {
+			throw new PatchException("The Email apk was not found.");
 		}
 		
 		//exchange
-		for (String s : new String[] { "Exchange", "ExchangeGoogle", "com.android.exchange", "SecExchange_J", "SecExchange_Tablet", "SecExchange", "Exchange2", "Exchange2Google", null }) {
-			if (s == null && apiLevel >= 14) { // silently ignore on pre-ICS
-				System.out.print("Can't find Exchange app. Enter the name of your Exchange apk or press <Enter> to continue: ");
-				s = new BufferedReader(new InputStreamReader(System.in)).readLine();
-				if (s == null || s.trim().length() == 0) {
-					break;	//gracefully continue
-				}
-				s = s.trim().replaceFirst("\\.apk$", "");
-			}
-			PatchableAPK apk = new PatchableAPK(s);
-			if (pullFile("/system/app/" + apk.apk, apk.apk)) {
-				apk.hasOdex = pullFile("/system/app/" + apk.odex, apk.odex);
+		for (String s : EXCHANGE_APKS) {
+			apk = pullApk(s);
+			if (apk != null) {
 				apks.add(apk);
 				break;
 			}
 		}
-		
-		if (apks.isEmpty()) {
-			throw new PatchException("A necessary .apk was not found.");
+		if (apk == null && apiLevel >= 14) { // silently ignore on pre-ICS
+			System.out.print("Can't find Exchange app. Enter the name of your Exchange apk or press <Enter> to continue: ");
+			String s = new BufferedReader(new InputStreamReader(System.in)).readLine();
+			if (s != null && s.trim().length() > 0) {
+				apk = pullApk(s.trim().replaceFirst("\\.apk$", ""));
+				if (apk != null) {
+					apks.add(apk);
+				} else
+					throw new PatchException("The Exchange apk was not found.");
+			}
 		}
 		return apks;
 	}
@@ -455,6 +502,10 @@ public class Run {
 	
 	static void runShellCommand(String command) throws IOException {
 		runCommandNoFail(adb, "shell", command);
+	}
+
+	static void runShellCommandNoWait(String command) throws IOException, InterruptedException {
+		runCommandNoWait(adb, "shell", command);
 	}
 
 	static void initBootClasspathFromDevice() throws IOException {
@@ -678,6 +729,7 @@ public class Run {
 				createWorkDir();
 				dirty = true;
 				checkADB();
+				waitForDevice(true);
 				println("Checking device...");
 				getDeviceDetails();
 				if (systemPartition != null) {
@@ -702,10 +754,12 @@ public class Run {
 					throw new PatchException("Patch aborted.", true);
 
 				println("Updating device ...");
+				waitForDevice(false);
 				remountSystem();
                 final String backupDirName = "email-app-backup-" + System.currentTimeMillis();
                 final String backupDir = sdcardDir + backupDirName;
                 runShellCommand("mkdir " + backupDir);
+				checkSdcardSUDir(backupDirName);
 				successes = 0;
 				for(PatchableAPK apk : apks) {
 					if (!apk.patched)
@@ -735,17 +789,17 @@ public class Run {
 						}
 					}
 					// update apk
-					runShellCommand(wrapSU(busybox + "dd if=" + sdcardDir + apk.patchedApk + " of=/system/app/" + apk.apk));
+					runShellCommand(wrapSU(busybox + "dd if=" + sdcardSUDir + apk.patchedApk + " of=/system/app/" + apk.apk));
 					if (!fileExists("/system/app/" + apk.apk) && hasBusybox) {
 						// try without busybox
-						runShellCommand(wrapSU("dd if=" + sdcardDir + apk.patchedApk + " of=/system/app/" + apk.apk));
+						runShellCommand(wrapSU("dd if=" + sdcardSUDir + apk.patchedApk + " of=/system/app/" + apk.apk));
 					}
                     runShellCommand(wrapSU(busybox + "chmod 644 /system/app/" + apk.apk));
                     runShellCommand(wrapSU(busybox + "chown 0.0 /system/app/" + apk.apk));
 					if (fileExists("/system/app/" + apk.apk)) {
-						runShellCommand(wrapSU(busybox + "rm " + sdcardDir + apk.patchedApk));
+						runShellCommand(wrapSU(busybox + "rm " + sdcardSUDir + apk.patchedApk));
 					} else {
-						println("Unable to update " + apk.apk + ". Please update " + apk.apk + " manually. The patched version is at" + sdcardDir + apk.patchedApk);
+						println("Unable to update " + apk.apk + ". Please update " + apk.apk + " manually. The patched version is at " + sdcardDir + apk.patchedApk);
 						continue;
 					}
 					successes++;
@@ -754,7 +808,7 @@ public class Run {
 					throw new PatchException("Device update failed.", true);
 				
 				println("Rebooting device ...");
-				runShellCommand(wrapSU("reboot"));
+				runShellCommandNoWait(wrapSU("reboot"));
 
 				notes = "\nNOTES! PLEASE READ!\n\n"
 						+ "* All Email app accounts will be reset and need to be re-created.\n"
@@ -767,55 +821,76 @@ public class Run {
 				dirty = true;
 				// check adb connectivity
 				checkADB();
+				waitForDevice(true);
 				println("Checking device...");
 				getDeviceDetails();
 				checkRootAccess();
-				println("Checking app(s) ...");
-				List<PatchableAPK> apks = findApks();
 				int n = 0;
-				for(PatchableAPK apk : apks) {
-					// old method: backup stored at /system/app
-					if (fileExists("/system/app/" + apk.apk + ".BAK")) {
-						println("Restoring " + apk.apk + " from " + "/system/app/" + apk.apk + ".BAK" + " ...");
-						remountSystem();
-						runShellCommand(wrapSU(busybox + "rm /system/app/" + apk.apk));
-						runShellCommand(wrapSU(busybox + "rm /system/app/" + apk.odex));
-						runShellCommand(wrapSU(busybox + "mv /system/app/" + apk.apk + ".BAK /system/app/" + apk.apk));
-						runShellCommand(wrapSU(busybox + "mv /system/app/" + apk.odex + ".BAK /system/app/" + apk.odex));
-						if (!fileExists("/system/app/" + apk.apk + ".BAK")) {
-							n++;
-							continue;
+				// new method: backup stored at /sdcard/email-app-backup-<tstamp>
+				String[] sdcardFiles = listFiles(sdcardDir);
+				String backupDir = null;
+				List<PatchableAPK> apks = null;
+				for (int i = 0; i < sdcardFiles.length; i++) {
+					if (sdcardFiles[i].matches("email-app-backup-[0-9]{12,14}")) {
+						String[] backupFiles = listFiles(sdcardDir + sdcardFiles[i]);
+						List<PatchableAPK> apks2 = new ArrayList<Run.PatchableAPK>();
+						for (String s : backupFiles) {
+							if (s.endsWith(".apk")) {
+								String baseName = s.substring(0, s.length() - 4);
+								PatchableAPK p = new PatchableAPK(baseName);
+								apks2.add(p);
+								p.hasOdex = contains(backupFiles, baseName + ".odex");
+							}
 						}
-   						println("-Failed!");
+						if ((apks2.size() == 1 && (apks == null || apks.size() == 1)) || apks2.size() == 2) {
+							backupDir = sdcardFiles[i]; // keep the last good one
+							apks = apks2;
+						}
 					}
-					// new method: backup stored at /sdcard/email-app-backup-<tstamp>
-					String[] sdcardFiles = listFiles(sdcardDir);
-					String backupDir = null;
-					for (int i=0; i<sdcardFiles.length; i++) {
-						if (sdcardFiles[i].startsWith("email-app-backup-"))
-							backupDir = sdcardDir + sdcardFiles[i];
-					}
-					if (backupDir != null) {
+				}
+				if (backupDir != null) {
+					checkSdcardSUDir(backupDir);
+					for(PatchableAPK apk : apks) {
 						println("Restoring " + apk.apk + " from " + backupDir + " ...");
 						remountSystem();
 						runShellCommand(wrapSU(busybox + "rm /system/app/" + apk.apk));
-						runShellCommand(wrapSU(busybox + "dd if=" + backupDir + "/" + apk.apk + " of=/system/app/" + apk.apk));
+						runShellCommand(wrapSU(busybox + "dd if=" + sdcardSUDir + backupDir + "/" + apk.apk + " of=/system/app/" + apk.apk));
 	                    runShellCommand(wrapSU(busybox + "chmod 644 /system/app/" + apk.apk));
 	                    runShellCommand(wrapSU(busybox + "chown 0.0 /system/app/" + apk.apk));
-	                    if (fileExists(backupDir + "/" + apk.odex)) {
+	                    if (apk.hasOdex) {
 	                        runShellCommand(wrapSU(busybox + "rm /system/app/" + apk.odex));
-	                        runShellCommand(wrapSU(busybox + "dd if=" + backupDir + "/" + apk.odex + " of=/system/app/" + apk.odex));
+	                        runShellCommand(wrapSU(busybox + "dd if=" + sdcardSUDir + backupDir + "/" + apk.odex + " of=/system/app/" + apk.odex));
 	                        runShellCommand(wrapSU(busybox + "chmod 644 /system/app/" + apk.odex));
 	                        runShellCommand(wrapSU(busybox + "chown 0.0 /system/app/" + apk.odex));
 	                    }
 						n++;
-						continue;
+					}
+				}
+				if (n == 0) {
+					println("Checking app(s) ...");
+					apks = findApks();
+					// old method: backup stored at /system/app
+					String[] systemAppFiles = listFiles("/system/app/");
+					for(PatchableAPK apk : apks) {
+						if (contains(systemAppFiles, apk.apk + ".BAK")) {
+							println("Restoring " + apk.apk + " from " + "/system/app/" + apk.apk + ".BAK" + " ...");
+							remountSystem();
+							runShellCommand(wrapSU(busybox + "rm /system/app/" + apk.apk));
+							runShellCommand(wrapSU(busybox + "rm /system/app/" + apk.odex));
+							runShellCommand(wrapSU(busybox + "mv /system/app/" + apk.apk + ".BAK /system/app/" + apk.apk));
+							runShellCommand(wrapSU(busybox + "mv /system/app/" + apk.odex + ".BAK /system/app/" + apk.odex));
+							if (!fileExists("/system/app/" + apk.apk + ".BAK")) {
+								n++;
+								continue;
+							}
+	   						println("-Failed!");
+						}
 					}
 				}
 				if (n == 0)
 					throw new PatchException("No backup found on device.", true);
 				println("Rebooting device ...");
-				runShellCommand(wrapSU("reboot"));
+				runShellCommandNoWait(wrapSU("reboot"));
 			} else if ("patch-manual".equals(args[0])) {
 				if (args.length < 4)
 					throw new PatchException(USAGE_PMANUAL, true);
@@ -880,6 +955,24 @@ public class Run {
 
 	}
 
+	private static boolean contains(String[] arr, String string) {
+		for (String s : arr)
+			if (s == string || (s != null && s.equals(string)))
+				return true;
+		return false;
+	}
+
+	static void checkSdcardSUDir(String fileName) throws IOException {
+		for (String dir : sdcardSUDirs) {
+			if (fileExistsSU(dir + fileName)) {
+				sdcardSUDir = dir;
+				return;
+			}
+		}
+		println("Unable to determine sdcard location for user root");
+		sdcardSUDir = sdcardDir;
+	}
+
 	static String[] listFiles(String remoteDir) throws IOException {
         runShellCommand("ls " + (remoteDir.endsWith("/") ? remoteDir : remoteDir + "/"));
         return cmdout.toString().split("(?s)[ \\t\\r\\n]+");
@@ -898,6 +991,14 @@ public class Run {
 	static boolean fileExists(String fullRemotePath) throws IOException {
         String remoteDir = fullRemotePath.replaceAll("[^\\/]+$", "");
 	    runShellCommand("ls " + remoteDir);
+	    String fileName = fullRemotePath.replaceAll(".*\\/", "");
+	    String ls = cmdout.toString();
+		return ls.contains(fileName);
+	}
+
+	static boolean fileExistsSU(String fullRemotePath) throws IOException {
+        String remoteDir = fullRemotePath.replaceAll("[^\\/]+$", "");
+	    runShellCommand(wrapSU("ls " + remoteDir));
 	    String fileName = fullRemotePath.replaceAll(".*\\/", "");
 	    String ls = cmdout.toString();
 		return ls.contains(fileName);
