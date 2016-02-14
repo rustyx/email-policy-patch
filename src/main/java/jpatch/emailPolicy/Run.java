@@ -45,10 +45,10 @@ public class Run {
 
 	static boolean messageMode; // true if last thrown exception shouldn't write debug log
 	
-	static final String[] EMAIL_APKS = new String[] { "Email", "EmailGoogle", "com.android.email", "SecEmail_J", "SecEmail_K", "SecEmail_L",
-			"SecEmail_M", "SecEmail_Tablet", "SecEmail", "Email2", "Email2Google" };
-	static final String[] EXCHANGE_APKS = new String[] { "Exchange", "ExchangeGoogle", "com.android.exchange", "SecExchange_J", "SecExchange_K",
-			"SecExchange_L", "SecExchange_M", "SecExchange_Tablet", "SecExchange", "Exchange2", "Exchange2Google" };
+	static final String[] EMAIL_APKS = new String[] { "Email", "EmailGoogle", "Email2", "Email2Google",
+		"com.android.email", "SecEmail", "SecEmail_J", "SecEmail_K", "SecEmail_L", "SecEmail_M", "SecEmail_Tablet" };
+	static final String[] EXCHANGE_APKS = new String[] { "Exchange", "Exchange2", "ExchangeGoogle", "Exchange2Google",
+		"com.android.exchange", "SecExchange", "SecExchange_J", "SecExchange_K", "SecExchange_L", "SecExchange_M", "SecExchange_Tablet" };
 
 	static class PatchException extends RuntimeException {
 		private static final long serialVersionUID = 1L;
@@ -308,6 +308,8 @@ public class Run {
 	}
 
 	static int apiLevel;
+	static int androidVersionMajor;
+	static String androidVersion;
 
 	static void getDeviceDetails() throws IOException {
 		int rc;
@@ -320,17 +322,17 @@ public class Run {
 			if (m.find()) {
 				String model = m.group(1);
 				String build = "?";
-				String version = "?";
+				androidVersion = "?";
 				m = buildPattern.matcher(cmdout.toString());
 				if (m.find()) {
 					build = m.group(1);
 				}
 				m = versionPattern.matcher(cmdout.toString());
 				if (m.find()) {
-					version = m.group(1);
+					androidVersion = m.group(1);
 				}
-				apiLevel = getAPILevel(version, build);
-				println("Model: " + model + ", build " + build + ", android " + version + " (API Level " + apiLevel + (apiLevel == MAX_API_LEVEL ? "+" : "") + ")");
+				apiLevel = getAPILevel(androidVersion, build);
+				println("Model: " + model + ", build " + build + ", android " + androidVersion + " (API Level " + apiLevel + (apiLevel == MAX_API_LEVEL ? "+" : "") + ")");
 			} else
 				println("Unable to determine device model. adb output: \n" + getCmdErr());
 		}
@@ -346,26 +348,29 @@ public class Run {
 	static int getAPILevel(String version, String build) {
 		Matcher m = Pattern.compile("(\\d+)\\.(\\d+)(\\.(\\d+))?").matcher(version);
 		if (m.find()) {
+			androidVersionMajor = Integer.parseInt(m.group(1));
+			if (androidVersionMajor >= 5)
+				debug = true;
 			int v = Integer.parseInt(m.group(1)) * 10000 + Integer.parseInt(m.group(2)) * 100;
 			if (m.group(4) != null)
 				v += Integer.parseInt(m.group(4));
-			if (v < 50600) {
-				if (v >= 40100) return 16;
-				if (v >= 40003) return 15;
-				if (v >= 40000) return 14;
-				if (v >= 30200) return 13;
-				if (v >= 30100) return 12;
-				if (v >= 30000) return 11;
-				if (v >= 20303) return 10;
-				if (v >= 20300) return 9;
-				if (v >= 20200) return 8;
-				if (v >= 20100) return 7;
-				if (v >= 20001) return 6;
-				if (v >= 20000) return 5;
-				if (v >= 10600) return 4;
-				if (v >= 10500) return 3;
-				if (v >= 10100) return 2;
-			}
+			if (v >= 40100) return 16;
+			if (v >= 40003) return 15;
+			if (v >= 40000) return 14;
+			if (v >= 30200) return 13;
+			if (v >= 30100) return 12;
+			if (v >= 30000) return 11;
+			if (v >= 20303) return 10;
+			if (v >= 20300) return 9;
+			if (v >= 20200) return 8;
+			if (v >= 20100) return 7;
+			if (v >= 20001) return 6;
+			if (v >= 20000) return 5;
+			if (v >= 10600) return 4;
+			if (v >= 10500) return 3;
+			if (v >= 10100) return 2;
+		} else {
+			debug = true;
 		}
 		if (build.length() > 1) {
 			// nasty fallback that won't work with custom roms
@@ -426,24 +431,32 @@ public class Run {
 		}
 		return null;
 	}
-	
-	static List<PatchableAPK> findApks() throws IOException {
-		List<PatchableAPK> apks = new ArrayList<PatchableAPK>(2);
-		
-		//email
+
+	static void findApks(final String name, final String[] searchList, final int minApiLevel, List<PatchableAPK> apks) throws IOException {
 		PatchableAPK apk = null;
-		for (String s : EMAIL_APKS) {
-			apk = pullApk(s);
-			if (apk != null) {
-				apks.add(apk);
-				break;
+		if (androidVersionMajor >= 5) {
+			for (String s : searchList) {
+				apk = pullApk(s + "/" + s);
+				if (apk != null) {
+					apks.add(apk);
+					break;
+				}
 			}
 		}
 		if (apk == null) {
-			System.out.print("Can't find Email app. Enter the name of your Email apk or press <Enter> to exit: ");
+			for (String s : searchList) {
+				apk = pullApk(s);
+				if (apk != null) {
+					apks.add(apk);
+					break;
+				}
+			}
+		}
+		if (apk == null && apiLevel >= minApiLevel) {
+			System.out.print("Can't find " + name + " app. Enter the name of your " + name + " apk or press <Enter> to exit: ");
 			String s = new BufferedReader(new InputStreamReader(System.in)).readLine();
 			if (s == null || s.trim().length() == 0) {
-				throw new PatchException("User aborted (Email app not found).");
+				throw new PatchException("User aborted (" + name + " app not found).");
 			}
 			apk = pullApk(s.trim().replaceFirst("\\.apk$", ""));
 			if (apk != null) {
@@ -451,28 +464,14 @@ public class Run {
 			}
 		}
 		if (apks.isEmpty()) {
-			throw new PatchException("The Email apk was not found.");
+			throw new PatchException("The " + name + " apk was not found.");
 		}
-		
-		//exchange
-		for (String s : EXCHANGE_APKS) {
-			apk = pullApk(s);
-			if (apk != null) {
-				apks.add(apk);
-				break;
-			}
-		}
-		if (apk == null && apiLevel >= 14) { // silently ignore on pre-ICS
-			System.out.print("Can't find Exchange app. Enter the name of your Exchange apk or press <Enter> to continue: ");
-			String s = new BufferedReader(new InputStreamReader(System.in)).readLine();
-			if (s != null && s.trim().length() > 0) {
-				apk = pullApk(s.trim().replaceFirst("\\.apk$", ""));
-				if (apk != null) {
-					apks.add(apk);
-				} else
-					throw new PatchException("The Exchange apk was not found.");
-			}
-		}
+	}
+	
+	static List<PatchableAPK> findApks() throws IOException {
+		List<PatchableAPK> apks = new ArrayList<PatchableAPK>(2);
+		findApks("Email", EMAIL_APKS, 0, apks);
+		findApks("Exchange", EXCHANGE_APKS, 14, apks); // silently ignore on pre-ICS
 		return apks;
 	}
 
@@ -840,6 +839,19 @@ public class Run {
 								PatchableAPK p = new PatchableAPK(baseName);
 								apks2.add(p);
 								p.hasOdex = contains(backupFiles, baseName + ".odex");
+							} else if (s.endsWith(".odex")) {
+								continue;
+							} else {
+								// could be a sub-dir?
+								String[] backupFiles2 = listFiles(sdcardDir + sdcardFiles[i] + "/" + s);
+								for (String s2 : backupFiles2) {
+									if (s2.endsWith(".apk")) {
+										String baseName = s + "/" + s2.substring(0, s2.length() - 4);
+										PatchableAPK p = new PatchableAPK(baseName);
+										apks2.add(p);
+										p.hasOdex = contains(backupFiles2, baseName + ".odex");
+									}
+								}
 							}
 						}
 						if ((apks2.size() == 1 && (apks == null || apks.size() == 1)) || apks2.size() == 2) {
