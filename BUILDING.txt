@@ -1,5 +1,5 @@
 
-Requires: JDK 6+, Maven 3+
+Requires: JDK 7+, Maven 3+
 
 Prerequisites: Smali 2.0+.
 
@@ -8,8 +8,8 @@ Prerequisites: Smali 2.0+.
    Run: gradlew build
 
  * Install smali.jar and baksmali.jar into the local Maven repo: (actual jar names will vary, adjust as necessary)
-   mvn install:install-file -Dpackaging=jar -DgroupId=org.jf -DartifactId=smali -Dversion=dev -Dfile=smali/build/libs/smali-2.1.1-b12d4e9e.jar
-   mvn install:install-file -Dpackaging=jar -DgroupId=org.jf -DartifactId=baksmali -Dversion=dev -Dfile=baksmali/build/libs/baksmali-2.1.1-b12d4e9e.jar
+   mvn install:install-file -Dpackaging=jar -DgroupId=org.jf -DartifactId=smali -Dversion=dev -Dfile=smali/build/libs/smali-2.2.5-5935fe6e-fat.jar
+   mvn install:install-file -Dpackaging=jar -DgroupId=org.jf -DartifactId=baksmali -Dversion=dev -Dfile=baksmali/build/libs/baksmali-2.2.5-5935fe6e-fat.jar
 
  * Run: mvn clean package -Prelease
    (will create /target/email-policy-patch-x.x.zip)
